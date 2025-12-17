@@ -1,5 +1,8 @@
 # Karate Monitor
 
+> [!CAUTION]
+> The code is customized for personal use only.
+
 A Rust-based CLI tool for monitoring and analyzing Karate E2E tests. This tool replaces the shell-based log processing, providing configurable log filtering, test result summaries, SQL analysis, and log persistence.
 
 ## Features
