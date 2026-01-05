@@ -56,6 +56,10 @@ pub struct KarateConfig {
     pub report_dir: String,
     #[serde(default = "default_test_path")]
     pub default_test_path: String,
+    #[serde(default)]
+    pub use_compact_object_headers: bool,
+    #[serde(default)]
+    pub use_zgc: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,6 +199,8 @@ impl Default for KarateConfig {
             output_format: default_output_format(),
             report_dir: default_report_dir(),
             default_test_path: default_test_path(),
+            use_compact_object_headers: false,
+            use_zgc: false,
         }
     }
 }

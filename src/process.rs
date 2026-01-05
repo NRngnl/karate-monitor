@@ -200,6 +200,29 @@ impl ProcessManager {
 
         // Conditionally add flags for newer Java versions
         if let Some(version) = get_java_version() {
+            // ZGC (Mutually exclusive with Compact Object Headers for now)
+            // Strict 25+ requirement for ZGC
+            if self.config.karate.use_zgc && version >= 25 {
+                println!("{} Enabling ZGC", "ℹ️".bright_blue());
+                cmd.arg("-XX:+UseZGC");
+
+                if self.config.karate.use_compact_object_headers {
+                    println!("{} Compact Object Headers disabled because ZGC is enabled", "⚠️".yellow());
+                }
+            } else {
+                if self.config.karate.use_zgc && version < 25 {
+                    println!("{} ZGC requested but requires Java 25+ (detected: {}). Ignoring.", "⚠️".yellow(), version);
+                }
+
+                // Compact Object Headers (Product in 25+) - Optional and Strict 25+
+                // Only enable if compatible (version >= 25)
+                if version >= 25 && self.config.karate.use_compact_object_headers {
+                    println!("{} Java version {} detected, enabling compact object headers", "ℹ️".bright_blue(), version);
+                    cmd.arg("-XX:+UseCompactObjectHeaders");
+                }
+            }
+
+            // Native Access & Unsafe Suppression (Java 25+)
             if version > 24 {
                 println!("{} Java version {} detected, enabling native access and suppressing Unsafe warnings", "ℹ️".bright_blue(), version);
                 cmd.arg("--enable-native-access=ALL-UNNAMED");
