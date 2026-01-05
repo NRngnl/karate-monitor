@@ -60,6 +60,14 @@ struct Args {
     #[arg(long)]
     failed_only: bool,
 
+    /// Enable UseCompactObjectHeaders (Java 25+ only)
+    #[arg(long)]
+    compact_object_headers: bool,
+
+    /// Enable ZGC (Mutually exclusive with Compact Object Headers)
+    #[arg(long)]
+    use_zgc: bool,
+
     /// Test paths to run (defaults to /tests)
     #[arg(trailing_var_arg = true)]
     tests: Vec<String>,
@@ -101,6 +109,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.failed_only {
         config.analysis.failed_only = true;
+    }
+    if args.compact_object_headers {
+        config.karate.use_compact_object_headers = true;
+    }
+    if args.use_zgc {
+        config.karate.use_zgc = true;
     }
     if let Some(export_path) = &args.export {
         config.logging.export_path = export_path.to_string_lossy().to_string();
