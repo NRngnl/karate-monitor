@@ -201,8 +201,9 @@ impl ProcessManager {
         // Conditionally add flags for newer Java versions
         if let Some(version) = get_java_version() {
             if version > 24 {
-                println!("{} Java version {} detected, enabling native access", "ℹ️".bright_blue(), version);
+                println!("{} Java version {} detected, enabling native access and suppressing Unsafe warnings", "ℹ️".bright_blue(), version);
                 cmd.arg("--enable-native-access=ALL-UNNAMED");
+                cmd.arg("--sun-misc-unsafe-memory-access=allow");
             }
         }
 
