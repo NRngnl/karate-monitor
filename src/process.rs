@@ -197,6 +197,15 @@ impl ProcessManager {
 
         // Build command
         let mut cmd = Command::new("java");
+
+        // Conditionally add flags for newer Java versions
+        if let Some(version) = get_java_version() {
+            if version > 24 {
+                println!("{} Java version {} detected, enabling native access", "ℹ️".bright_blue(), version);
+                cmd.arg("--enable-native-access=ALL-UNNAMED");
+            }
+        }
+
         cmd.arg("-cp")
             .arg(&classpath)
             .arg("com.intuit.karate.Main")
@@ -453,5 +462,90 @@ async fn reqwest_health_check(url: &str) -> Result<bool, Box<dyn std::error::Err
     match tokio::net::TcpStream::connect(format!("{}:{}", host, port)).await {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
+    }
+}
+
+/// Detect one of two patterns:
+/// 1) "openjdk version \"1.8.0_292\"" -> returns 8
+/// 2) "openjdk version \"11.0.11\""   -> returns 11
+/// 3) "java version \"25-ea\""        -> returns 25
+fn get_java_version() -> Option<u32> {
+    use std::process::Command;
+    
+    // We use std::process::Command here because we want a blocking check before async runtime fully spins up logic,
+    // or simply because it's a quick check.
+    let output = Command::new("java").arg("-version").output().ok()?;
+    
+    // Java version info is often printed to stderr
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let all_out = format!("{}\n{}", stdout, stderr);
+    
+    parse_java_version(&all_out)
+}
+
+fn parse_java_version(input: &str) -> Option<u32> {
+    use regex::Regex;
+    
+    // Look for: version "X.Y.Z" or version "X-ea"
+    // Capture group 1 is the version string
+    let re = Regex::new(r#"version "([^"]+)""#).ok()?;
+    
+    if let Some(caps) = re.captures(input) {
+        let version_str = caps.get(1)?.as_str();
+        
+        // Check for 1.X style (e.g. 1.8)
+        if version_str.starts_with("1.") {
+            let parts: Vec<&str> = version_str.split('.').collect();
+            if parts.len() >= 2 {
+                return parts[1].parse().ok();
+            }
+        }
+        
+        // Handle direct major version (e.g., "11...", "25-ea")
+        // Take content until the first dot, hyphen, or underscore
+        let major_part: String = version_str
+            .chars()
+            .take_while(|c| c.is_numeric())
+            .collect();
+            
+        if !major_part.is_empty() {
+            return major_part.parse().ok();
+        }
+    }
+    
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_java_version() {
+        let v8 = r#"openjdk version "1.8.0_292"
+OpenJDK Runtime Environment (Corretto-8.292.10.1) (build 1.8.0_292-b10)
+OpenJDK 64-Bit Server VM (Corretto-8.292.10.1) (build 25.292-b10, mixed mode)"#;
+        assert_eq!(parse_java_version(v8), Some(8));
+
+        let v11 = r#"openjdk version "11.0.11" 2021-04-20
+OpenJDK Runtime Environment Corretto-11.0.11.9.1 (build 11.0.11+9-LTS)
+OpenJDK 64-Bit Server VM Corretto-11.0.11.9.1 (build 11.0.11+9-LTS, mixed mode)"#;
+        assert_eq!(parse_java_version(v11), Some(11));
+
+        let v17 = r#"java version "17.0.1" 2021-10-19 LTS
+Java(TM) SE Runtime Environment (build 17.0.1+12-LTS-39)
+Java HotSpot(TM) 64-Bit Server VM (build 17.0.1+12-LTS-39, mixed mode, sharing)"#;
+        assert_eq!(parse_java_version(v17), Some(17));
+
+        let v24 = r#"openjdk version "24-ea" 2025-03-18
+OpenJDK Runtime Environment (build 24-ea+14-1498)
+OpenJDK 64-Bit Server VM (build 24-ea+14-1498, mixed mode, sharing)"#;
+        assert_eq!(parse_java_version(v24), Some(24));
+        
+        let v25 = r#"openjdk version "25" 2025-09-16
+OpenJDK Runtime Environment (build 25+3)
+OpenJDK 64-Bit Server VM (build 25+3, mixed mode, sharing)"#;
+        assert_eq!(parse_java_version(v25), Some(25));
     }
 }
